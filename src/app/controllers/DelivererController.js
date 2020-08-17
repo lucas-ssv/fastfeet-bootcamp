@@ -49,7 +49,7 @@ class DelivererController {
       email: Yup.string().required(),
     });
 
-    if (!(schema.isValid(req.body))) {
+    if (!(await schema.isValid(req.body))) {
       return res.status(400).json({ error: 'Validation fails!' });
     }
 
@@ -57,7 +57,7 @@ class DelivererController {
 
     const deliverer = await Deliverer.findByPk(req.params.id);
 
-    if (email && email != deliverer.email) {
+    if (email && email == deliverer.email) {
       const delivererExists = await Deliverer.findOne({
         where: {
           email,
