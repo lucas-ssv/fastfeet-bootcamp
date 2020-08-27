@@ -9,6 +9,7 @@ import DelivererController from './app/controllers/DelivererController';
 import FileController from './app/controllers/FileController';
 import OrderController from './app/controllers/OrderController';
 import StatusController from './app/controllers/StatusController';
+import DeliveryProblemsController from './app/controllers/DeliveryProblemsController';
 
 import NotificationController from './app/controllers/NotificationController';
 
@@ -35,7 +36,11 @@ routes.post('/orders', OrderController.store);
 routes.put('/orders/:id', OrderController.update);
 routes.delete('/orders/:id', OrderController.delete);
 
-routes.put('/status/:id', StatusController.update);
+routes.put('/status/:id/:deliveryman_id', StatusController.update);
+
+routes.get('/problems', DeliveryProblemsController.index);
+routes.get('/delivery/:id/problems', DeliveryProblemsController.show);
+routes.post('/delivery/:id/problems', DeliveryProblemsController.store);
 
 routes.get('/notifications/:id', NotificationController.index);
 routes.get('/notifications/:id/deliveries', NotificationController.show);

@@ -10,11 +10,12 @@ class NotificationController {
             where: {
                 deliveryman_id: id,
                 end_date: null,
+                signature_id: null,
                 [Op.or]: [
                     {
                         canceled_at: null,
                     }
-                ]
+                ],
             },
         });
 
@@ -33,7 +34,12 @@ class NotificationController {
                 deliveryman_id: id,
                 [Op.not]: [
                     {
-                        end_date: null
+                        end_date: null,
+                    }
+                ],
+                [Op.not]: [
+                    {
+                        signature_id: null,
                     }
                 ]
             }

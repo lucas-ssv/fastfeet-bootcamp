@@ -1,42 +1,26 @@
 import { isToday, isBefore, parseISO } from 'date-fns';
 
 import Order from '../models/Order';
+import File from '../models/File';
 import Deliverer from '../models/Deliverer';
+import Recipient from '../models/Recipient';
 
 class StatusController {
     async update(req, res) {
-        const { id } = req.params;
+        const { id, deliveryman_id } = req.params;
         
-        const {
-            deliveryman_id,
-            signature_id,
-            start_date,
-            end_date,
-        } = req.body;
+        const { signature_id } = req.body;
+
+        const signatureExists = await File.findByPk(signature_id);
+
+        if (!signatureExists) {
+            return res.status(400).json({ error: 'Signature not exists!' });
+        }
 
         const order = await Order.findByPk(id);
 
         if (!order) {
             return res.status(400).json({ error: 'Order not exists!' });
-        }
-
-        const dateStart = parseISO(start_date);
-        const dateEnd = parseISO(end_date);
-    
-        // Check if date already passed
-        if (isBefore(dateStart, new Date())) {
-          return res.status(400).json({ error: 'Past date is not permitted!' });
-        }
-    
-        if (isBefore(dateEnd, new Date()) || dateEnd < dateStart) {
-          return res.status(400).json({ error: 'Past date is not permitted!' });
-        }
-    
-        // Check if hour are between 8:00am and 18:00pm
-        if (dateStart.getHours() < 8 || dateEnd.getHours() > 18) {
-          return res
-            .status(401)
-            .json({ error: 'The orders can be only placed between 8:00am to 18:00pm' });
         }
 
         const orders = await Order.findAll({
@@ -65,8 +49,43 @@ class StatusController {
 
         await order.update({
             signature_id,
-            start_date,
-            end_date
+            end_date: new Date(),
+        });
+
+        await order.reload({
+            attributes: ['id', 'product', 'start_date', 'end_date'],
+            include: [
+                {
+                    model: Deliverer,
+                    as: 'deliveryman',
+                    attributes: ['name', 'email'],
+                    include: [
+                        {
+                            model: File,
+                            as: 'avatar',
+                            attributes: ['name', 'path', 'url']
+                        }
+                    ]
+                },
+                {
+                    model: Recipient,
+                    as: 'recipient',
+                    attributes: [
+                        'name',
+                        'address',
+                        'number',
+                        'complement',
+                        'state',
+                        'city',
+                        'zipcode'
+                    ]
+                },
+                {
+                    model: File,
+                    as: 'signature',
+                    attributes: ['name', 'path', 'url']
+                }
+            ]
         });
 
         return res.status(200).json(order);
