@@ -1,51 +1,24 @@
-import { Op } from 'sequelize';
-
-import Order from '../models/Order';
+import Notification from '../schemas/Notification';
 
 class NotificationController {
-    async index(req, res) {
+    async update(req, res) {
         const { id } = req.params;
 
-        const order = await Order.findAll({
-            where: {
-                deliveryman_id: id,
-                end_date: null,
-                signature_id: null,
-                [Op.or]: [
-                    {
-                        canceled_at: null,
-                    }
-                ],
+        const notification = await Notification.findByIdAndUpdate(
+            id,
+            {
+                read: true,
             },
-        });
+            {
+                new: true,
+            }
+        );
 
-        if (!order) {
-            return res.status(400).json({ error: 'Not found orders delivered!' });
+        if (!notification) {
+            return res.status(400).json({ error: 'Notification not exists!' });
         }
 
-        return res.json(order);
-    }
-
-    async show(req, res) {
-        const { id } = req.params;
-
-        const order = await Order.findAll({
-            where: {
-                deliveryman_id: id,
-                [Op.not]: [
-                    {
-                        end_date: null,
-                    }
-                ],
-                [Op.not]: [
-                    {
-                        signature_id: null,
-                    }
-                ]
-            }
-        });
-
-        return res.status(200).json(order);
+        return res.status(200).json(notification);
     }
 }
 

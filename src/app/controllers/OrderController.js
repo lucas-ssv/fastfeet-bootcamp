@@ -7,6 +7,8 @@ import Deliverer from '../models/Deliverer';
 
 import Notification from '../schemas/Notification';
 
+import Mail from '../../lib/Mail';
+
 class OrderController {
   async index(req, res) {
     const { page = 1 } = req.query;
@@ -71,13 +73,13 @@ class OrderController {
     }
 
     // Check if deliveryman exists
-    const deliverymanExists = await Deliverer.findOne({
+    const deliveryman = await Deliverer.findOne({
       where: {
         id: deliveryman_id,
       }
     });
 
-    if (!deliverymanExists) {
+    if (!deliveryman) {
       return res.status(400).json({ error: 'Deliveryman not exists!' });
     }
 
@@ -98,6 +100,12 @@ class OrderController {
     await Notification.create({
       content: `Nova encomenda de ${product} para ${recipient.name} já está disponível para retirada.`,
       user: deliveryman_id
+    });
+
+    await Mail.sendMail({
+      to: `${deliveryman.name} <${deliveryman.email}>`,
+      subject: `Nova encomenda de ${recipient.name}.`,
+      text: `${product} já está pronto para retirada.`,
     });
 
     return res.json(order);
@@ -137,28 +145,6 @@ class OrderController {
         .status(401)
         .json({ error: 'The orders can be only placed between 8:00am to 18:00pm' });
     }
-
-    // // Check if recipient exists
-    // const recipientExists = await Recipient.findOne({
-    //   where: {
-    //     id: recipient_id,
-    //   }
-    // });
-
-    // if (!recipientExists) {
-    //   return res.status(400).json({ error: 'Recipient not exists' });
-    // }
-
-    // // Check if deliveryman exists
-    // const deliverymanExists = await Deliverer.findOne({
-    //   where: {
-    //     id: deliveryman_id,
-    //   }
-    // });
-
-    // if (!deliverymanExists) {
-    //   return res.status(400).json({ error: 'Deliveryman not exists!' });
-    // }
 
     await order.update(req.body);
 
