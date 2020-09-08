@@ -1,15 +1,19 @@
 import * as Yup from 'yup';
+import { format } from 'date-fns';
+import { pt } from 'date-fns/locale';
 
-import DeliveryProblems from '../models/DeliveryProblems'
-import Order from '../models/Order'
-
-import Mail from '../../lib/Mail';
+import DeliveryProblems from '../models/DeliveryProblems';
+import Order from '../models/Order';
 import Deliverer from '../models/Deliverer';
+import Recipient from '../models/Recipient';
+
+import Queue from '../../lib/Queue';
+import CancellationMail from '../jobs/CancellationMail';
 
 class DeliveryProblemsController {
     async index(req, res) {
         const deliveryProblems = await DeliveryProblems.findAll({
-            attributes: ['delivery_id', 'description'],
+            attributes: ['id', 'description'],
             include: [
                 {
                     model: Order,
@@ -98,11 +102,17 @@ class DeliveryProblemsController {
                 {
                     model: Order,
                     as: 'delivery',
+                    attributes: ['product', 'canceled_at'],
                     include: [
                         {
                             model: Deliverer,
                             as: 'deliveryman',
                             attributes: ['name', 'email'],
+                        },
+                        {
+                            model: Recipient,
+                            as: 'recipient',
+                            attributes: ['name']
                         }
                     ]
                 }
@@ -113,13 +123,20 @@ class DeliveryProblemsController {
             return res.status(400).json({ error: "Delivery not exists!" });
         }
 
+        const formatDate = format(
+            deliveryProblems.delivery.canceled_at,
+            "'dia' dd 'de' MMMM', às' H:mm'h'",
+            {
+                locale: pt,
+            }
+        );
+
         /**
          * Email para o entregador falando que a encomenda foi cancelada
          */
-        await Mail.sendMail({
-            to: `${deliveryProblems.delivery.deliveryman.name} <${deliveryProblems.delivery.deliveryman.email}>`,
-            subject: 'Encomenda cancelada.',
-            text: `${deliveryProblems.description}`,
+        await Queue.add(CancellationMail.key, {
+            deliveryProblems,
+            formatDate,
         });
 
         await deliveryProblems.destroy();

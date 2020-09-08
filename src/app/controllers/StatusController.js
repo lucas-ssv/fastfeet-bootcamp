@@ -23,15 +23,17 @@ class StatusController {
             return res.status(400).json({ error: 'Order not exists!' });
         }
 
+        const deliveryman = await Deliverer.findByPk(deliveryman_id);
+
+        if (!deliveryman) {
+            return res.status(400).json({ error: 'Deliveryman not exists!' });
+        }
+
         const orders = await Order.findAll({
             where: {
                 deliveryman_id,
             }
         });
-
-        if (!deliveryman_id) {
-            return res.status(400).json({ error: 'Deliveryman not exists!' });
-        }
 
         let countOrderDelivered = 0;
 
@@ -49,43 +51,47 @@ class StatusController {
 
         await order.update({
             signature_id,
-            end_date: new Date(),
         });
 
         await order.reload({
-            attributes: ['id', 'product', 'start_date', 'end_date'],
-            include: [
+            attributes: [
+                'product', 
+                'canceled_at', 
+                'start_date', 
+                'end_date', 
+              ],
+              include: [
                 {
-                    model: Deliverer,
-                    as: 'deliveryman',
-                    attributes: ['name', 'email'],
-                    include: [
-                        {
-                            model: File,
-                            as: 'avatar',
-                            attributes: ['name', 'path', 'url']
-                        }
-                    ]
+                  model: Recipient,
+                  as: 'recipient',
+                  attributes: [
+                    'name', 
+                    'address', 
+                    'number', 
+                    'complement', 
+                    'state', 
+                    'city', 
+                    'zipcode'
+                  ],
                 },
                 {
-                    model: Recipient,
-                    as: 'recipient',
-                    attributes: [
-                        'name',
-                        'address',
-                        'number',
-                        'complement',
-                        'state',
-                        'city',
-                        'zipcode'
-                    ]
+                  model: Deliverer,
+                  as: 'deliveryman',
+                  attributes: ['name', 'email'],
+                  include: [
+                    {
+                      model: File,
+                      as: 'avatar',
+                      attributes: ['name', 'path', 'url']
+                    }
+                  ]
                 },
                 {
                     model: File,
                     as: 'signature',
                     attributes: ['name', 'path', 'url']
                 }
-            ]
+              ]
         });
 
         return res.status(200).json(order);

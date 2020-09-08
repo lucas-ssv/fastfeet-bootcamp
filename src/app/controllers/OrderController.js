@@ -1,7 +1,9 @@
-import { isBefore, parseISO } from 'date-fns';
+import { isBefore, parseISO, format } from 'date-fns';
+import { pt } from 'date-fns/locale';
 import * as Yup from 'yup';
 
 import Order from '../models/Order';
+import File from '../models/File';
 import Recipient from '../models/Recipient';
 import Deliverer from '../models/Deliverer';
 
@@ -13,9 +15,44 @@ class OrderController {
   async index(req, res) {
     const { page = 1 } = req.query;
 
-    const order = await Order.findAll({
+    const order = await Order.finddAll({
       limit: 20,
       offset: (page - 1) * 20,
+      attributes: [
+        'id',
+        'product', 
+        'canceled_at',
+        'start_date', 
+        'end_date', 
+        'signature_id'
+      ],
+      include: [
+        {
+          model: Recipient,
+          as: 'recipient',
+          attributes: [
+            'name', 
+            'address', 
+            'number', 
+            'complement', 
+            'state', 
+            'city', 
+            'zipcode'
+          ],
+        },
+        {
+          model: Deliverer,
+          as: 'deliveryman',
+          attributes: ['name', 'email'],
+          include: [
+            {
+              model: File,
+              as: 'avatar',
+              attributes: ['name', 'path', 'url']
+            }
+          ]
+        }
+      ]
     });
 
     return res.status(200).json(order);
@@ -35,27 +72,20 @@ class OrderController {
     const { 
       recipient_id, 
       deliveryman_id, 
-      signature_id,
       product,
-      canceled_at,
-      start_date,
-      end_date,
     } = req.body;
 
+    const start_date = new Date();
+
     const dateStart = parseISO(start_date);
-    const dateEnd = parseISO(end_date);
 
     // Check if date already passed
     if (isBefore(dateStart, new Date())) {
       return res.status(400).json({ error: 'Past date is not permitted!' });
     }
 
-    if (isBefore(dateEnd, new Date()) || dateEnd < dateStart) {
-      return res.status(400).json({ error: 'Past date is not permitted!' });
-    }
-
     // Check if hour are between 8:00am and 18:00pm
-    if (dateStart.getHours() < 8 || dateEnd.getHours() > 18) {
+    if (dateStart.getHours() < 8 || dateStart.getHours() > 18) {
       return res
         .status(401)
         .json({ error: 'The orders can be only placed between 8:00am to 18:00pm' });
@@ -87,10 +117,16 @@ class OrderController {
       recipient_id,
       deliveryman_id,
       product,
-      canceled_at,
       start_date,
-      end_date,
     });
+
+    const formatDate = format(
+      start_date,
+      "'dia' dd 'de' MMMM', às' H:mm'h'",
+      {
+        locale: pt,
+      }
+    );
     
     /**
      * Notify deliveryman
@@ -105,48 +141,108 @@ class OrderController {
     await Mail.sendMail({
       to: `${deliveryman.name} <${deliveryman.email}>`,
       subject: `Nova encomenda de ${recipient.name}.`,
-      text: `${product} já está pronto para retirada.`,
+      html: `
+        <div style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.6; color: #222; max-width: 600px;">
+          <strong>Olá, ${deliveryman.name}</strong>
+          <p>Há uma nova encomenda. Confira os detalhes:</p>
+          <p>
+              <strong>Cliente: </strong> ${recipient.name} <br />
+              <strong>Encomenda: </strong> ${product} <br />
+              <strong>Data/Hora: </strong> ${formatDate} <br />
+              <br />
+              Equipe FastFeet      
+          </p>
+        </div>
+      `,
+    });
+
+    await order.reload({
+      attributes: ['id', 'product', 'start_date'],
+      include: [
+        {
+          model: Recipient,
+          as: 'recipient',
+          attributes: [
+            'name',
+            'address',
+            'number',
+            'complement',
+            'state',
+            'city',
+            'zipcode',
+          ]
+        },
+        {
+          model: Deliverer,
+          as: 'deliveryman',
+          attributes: ['name', 'email'],
+          include: [
+            {
+              model: File,
+              as: 'avatar',
+              attributes: ['name', 'path', 'url']
+            }
+          ]
+        }
+      ]
     });
 
     return res.json(order);
   }
 
   async update(req, res) {
-    const {
-      recipient_id, 
-      deliveryman_id, 
-      signature_id,
-      product,
-      start_date,
-      end_date,
-    } = req.body;
-
     const order = await Order.findByPk(req.params.id);
 
     if (!order) {
       return res.status(400).json({ error: 'Order not exists!' });
     }
 
-    const dateStart = parseISO(start_date);
-    const dateEnd = parseISO(end_date);
+    const end_date = new Date();
 
-    // Check if date already passed
-    if (isBefore(dateStart, new Date())) {
+    if (isBefore(end_date, new Date()) || end_date < order.start_date) {
       return res.status(400).json({ error: 'Past date is not permitted!' });
     }
 
-    if (isBefore(dateEnd, new Date()) || dateEnd < dateStart) {
-      return res.status(400).json({ error: 'Past date is not permitted!' });
-    }
+    await order.update({
+      end_date,
+    });
 
-    // Check if hour are between 8:00am and 18:00pm
-    if (dateStart.getHours() < 8 || dateEnd.getHours() > 18) {
-      return res
-        .status(401)
-        .json({ error: 'The orders can be only placed between 8:00am to 18:00pm' });
-    }
-
-    await order.update(req.body);
+    await order.reload({
+      attributes: [
+        'product', 
+        'canceled_at', 
+        'start_date', 
+        'end_date', 
+        'signature_id'
+      ],
+      include: [
+        {
+          model: Recipient,
+          as: 'recipient',
+          attributes: [
+            'name', 
+            'address', 
+            'number', 
+            'complement', 
+            'state', 
+            'city', 
+            'zipcode'
+          ],
+        },
+        {
+          model: Deliverer,
+          as: 'deliveryman',
+          attributes: ['name', 'email'],
+          include: [
+            {
+              model: File,
+              as: 'avatar',
+              attributes: ['name', 'path', 'url']
+            }
+          ]
+        }
+      ]
+    });
 
     return res.status(200).json(order);
   }

@@ -1,6 +1,7 @@
 import * as Yup from 'yup';
 
 import Deliverer from '../models/Deliverer';
+import File from '../models/File';
 
 class DelivererController {
   async index(req, res) {
@@ -9,7 +10,14 @@ class DelivererController {
     const deliverers = await Deliverer.findAll({
       limit: 20,
       offset: (page - 1) * 20,
-      attributes: ['id', 'name', 'email', 'avatar_id'],
+      attributes: ['id', 'name', 'email'],
+      include: [
+        {
+          model: File,
+          as: 'avatar',
+          attributes: ['name', 'path', 'url']
+        }
+      ]
     });
 
     return res.json(deliverers);
@@ -25,9 +33,11 @@ class DelivererController {
       return res.status(401).json({ error: 'Validation fails!' });
     }
 
+    const { name, email, avatar_id } = req.body;
+
     const delivererExists = await Deliverer.findOne({
       where: {
-        email: req.body.email,
+        email,
       },
     });
 
@@ -35,13 +45,30 @@ class DelivererController {
       return res.status(401).json({ error: 'Deliverer already exists!' });
     }
 
-    const { id, name, email } = await Deliverer.create(req.body);
+    const fileExists = await File.findByPk(avatar_id);
 
-    return res.json({
-      id,
+    if (!fileExists) {
+      return res.status(400).json({ error: 'File not exists!' });
+    }
+
+    const deliverer = await Deliverer.create({
       name,
       email,
+      avatar_id,
     });
+
+    await deliverer.reload({
+      attributes: ['name', 'email', 'avatar_id'],
+      include: [
+        {
+          model: File,
+          as: 'avatar',
+          attributes: ['name', 'path', 'url']
+        }
+      ]
+    });
+
+    return res.status(200).json(deliverer);
   }
 
   async update(req, res) {
